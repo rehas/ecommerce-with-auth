@@ -4,6 +4,9 @@ const Product = require('./model')
 const router = new Router()
 
 const requireUser = (req, res, next) => {
+  // console.log("RequireUser middleware")
+  // console.log(req);
+  
 	if (req.user) next()
 	else res.status(401).send({
 		message: 'Please login to access product/add/edit/delete'
@@ -25,6 +28,7 @@ router.get('/products', (req, res)=>{
 
 router.post('/products', requireUser, (req, res)=>{
   const product = req.body
+  product.userId = req.user.id
   // console.log(product)
   // ... insert the new data into our database
   Product.create(product)
@@ -54,31 +58,42 @@ router.put('/products/:id', requireUser, (req, res) => {
   
   Product.findById(productId)
     .then(foundProduct =>{
-      foundProduct.update(updates)
-        .then((result)=>{
-          //console.log("Im the result from the update", result)
+      console.log(foundProduct.userId, "Foundproduct user_id")
+      console.log(req.user.id, "req.user")
+      if(foundProduct.userId !==req.user.id){
+        res.status(403).send({
+          message: `You're not allowed to edit thid product`
+        })
+      }else{
+        foundProduct.update(updates)
+      }
+    })
+    .then((result)=>{
           res.status(200).send(result)
       })
         .catch(err=> {
           console.log("update failed", err)
           res.status(204).send("Update failed")
       })
-    }).catch(error => res.status(500).send("No such product"))
-  // find the product in the DB
-  // change the product and store in DB
-  // respond with the changed product and status code 200 OK
-})
+      .catch(error => res.status(500).send("No such product"))
+    })
 
 router.delete('/products/:id', requireUser, (req, res)=>{
   const productId = Number(req.params.id)
   
   Product.findById(productId)
     .then(foundProduct =>{
-      foundProduct.destroy()
+      if(foundProduct.userId!==req.user.id){
+        res.status(403).send({
+          message: `You don't own this product, you can't delete it`
+        })
+      }else{
+        foundProduct.destroy()
         .then(result => res.status(200).send(`Product with Id: ${productId} deleted succesfully`))
-        .catch(err => res.status(500).send("deletion failed"))
+      }
     })
-    .catch(err => res.status(500).send("Product for deletion not found"))
-})
+    .catch(err => res.status(500).send("deletion failed"))
+  })
+  
 
 module.exports = router
